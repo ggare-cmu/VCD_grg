@@ -1,3 +1,7 @@
+#GRG - code to set env variables
+import os
+os.system(". ./prepare_1.0_softgym.sh")
+
 import os.path as osp
 import json
 import argparse

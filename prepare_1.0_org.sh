@@ -1,10 +1,6 @@
-export PATH=/home/grg/anaconda3/bin:$PATH
-
-# PATH=~/anaconda3/bin:~/anaconda3/bin:$PATH
-
+PATH=~/software/miniconda3/bin:~/anaconda3/bin:$PATH
 cd softgym
-# sh prepare_1.0.sh
-sh prepare_1.0_docker.sh
+. prepare_1.0.sh
 cd ..
 export PYFLEXROOT=${PWD}/softgym/PyFlex
 export PYTHONPATH=${PWD}:${PWD}/softgym:${PYFLEXROOT}/bindings/build:$PYTHONPATH

@@ -1,0 +1,13 @@
+#To run docker
+sudo nvidia-docker run     -v /datahd/GRG/F22_Projects/MoM/VCD/softgym:/workspace/softgym     -v /home/grg/anaconda3:/home/grg/anaconda3     -v /tmp/.X11-unix:/tmp/.X11-unix     --gpus all     -e DISPLAY=$DISPLAY     -e QT_X11_NO_MITSHM=1     -it xingyu/softgym:latest bash
+
+#Set env insider docker
+export PATH="/home/grg/anaconda3/bin:$PATH"
+
+python examples/random_env.py --env_name ClothFlatten --headless 1
+
+
+#To run VCD docker
+sudo nvidia-docker run     -v /datahd/GRG/F22_Projects/MoM/VCD:/workspace/VCD     -v /home/grg/anaconda3:/home/grg/anaconda3     -v /tmp/.X11-unix:/tmp/.X11-unix     --gpus all     -e DISPLAY=$DISPLAY     -e QT_X11_NO_MITSHM=1     -it xingyu/softgym:latest bash
+
+python VCD/main.py --gen_data=1 --dataf=./data/vcd
