@@ -54,6 +54,13 @@ echo $PATH
 . ./prepare_1.0_softgym.sh 
 
 
+sudo apt install python3-pcl
+cd /usr/lib/python3/dist-packages/
+#cd /usr/lib/python3/dist-packages/pcl/
+cp -r pcl /home/grg/anaconda3/envs/softgym/lib/python3.10/site-packages/
+#cd /usr/lib/python3/dist-packages/python_pcl-0.3.egg-info/
+cp -r python_pcl-0.3.egg-info /home/grg/anaconda3/envs/softgym/lib/python3.10/site-packages/
+
 
 
 #####################################################################################################################

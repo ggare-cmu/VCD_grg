@@ -7,7 +7,7 @@
   "collect_data_delta_move_max": 0.4,
   "collect_data_delta_move_min": 0.15,
   "cuda_idx": 0,
-  "dataf": "/datahd/GRG/F22_Projects/MoM/VCD/data/vcd_public_softgym",
+  "dataf": "/home/xlin3/Projects/softagent/data/vcd_public_softgym",
   "down_sample_scale": 3,
   "dt": 0.01,
   "edge_model_path": null,
