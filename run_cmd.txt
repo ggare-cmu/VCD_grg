@@ -10,4 +10,96 @@ python examples/random_env.py --env_name ClothFlatten --headless 1
 #To run VCD docker
 sudo nvidia-docker run     -v /datahd/GRG/F22_Projects/MoM/VCD:/workspace/VCD     -v /home/grg/anaconda3:/home/grg/anaconda3     -v /tmp/.X11-unix:/tmp/.X11-unix     --gpus all     -e DISPLAY=$DISPLAY     -e QT_X11_NO_MITSHM=1     -it xingyu/softgym:latest bash
 
+cd VCD/softgym
+. ./prepare_1.0_docker.sh 
+
+pip install shapely pyyaml pyquaternion moviepy h5py future pyflex opencv-python
+
 python VCD/main.py --gen_data=1 --dataf=./data/vcd
+
+#Ensure that at least PyTorch 1.12.0 is installed:
+python -c "import torch; print(torch.__version__)"
+>>> 1.13.0
+
+#Find the CUDA version PyTorch was installed with:
+python -c "import torch; print(torch.version.cuda)"
+
+conda install python=3.10
+sudo apt install python3-pcl
+
+pip install pyyaml
+pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
+
+pip install pyg-lib torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+pip install torch-geometric
+
+mv softgym softgym_repo
+ln -s softgym_repo/softgym softgym
+ln -s softgym_repo/PyFlex PyFlex
+
+#GRG-BUG-FIX: Effectively solve OSError: libcusparse.so.11: cannot open shared object file: No such file or directory
+#   Ref: https://blog.csdn.net/little_cute/article/details/124766123
+
+locate libcusparse.so.11
+
+/home/grg/anaconda3/envs/ai/lib/libcusparse.so.11
+/home/grg/anaconda3/envs/ai/lib/libcusparse.so.11.2.0.275
+
+export PATH=/home/grg/anaconda3/envs/softgym/bin/:$PATH
+export CPATH=/home/grg/anaconda3/envs/softgym/include/:$CPATH
+export LD_LIBRARY_PATH=/home/grg/anaconda3/envs/softgym/lib/:$LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=/home/grg/anaconda3/envs/softgym/lib/:$DYLD_LIBRARY_PATH
+echo $PATH
+
+. ./prepare_1.0_softgym.sh 
+
+
+
+
+#####################################################################################################################
+
+
+###########################################         Install Instructions        ######################################
+
+
+#####################################################################################################################
+
+
+You will have to first:
+Uninstall PyTorch and all other troch packages (audio, torchvision, geometry, spares, scatter, etc)
+Then update python to 3.10 using: conda install python=3.10
+Then install pcl by: sudo apt install python3-pcl
+Then move the installed pcl files to conda by following: https://blog.csdn.net/zsssrs/article/details/120054425
+Install yaml: pip install pyyaml
+Install pytorch: pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
+Install torch-scatter : pip install pyg-lib torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+Install torch-geometric: pip install torch-geometric
+Install other dependencies: pip install shapely pyyaml pyquaternion moviepy h5py future pyflex opencv-python
+Recomplie VCD using docker steps:
+rm softlinks of softgym and PyFlex and rename softgym_repo to softgym
+Start docker: sudo nvidia-docker run     -v /datahd/GRG/F22_Projects/MoM/VCD:/workspace/VCD     -v /home/grg/anaconda3:/home/grg/anaconda3     -v /tmp/.X11-unix:/tmp/.X11-unix     --gpus all     -e DISPLAY=$DISPLAY     -e QT_X11_NO_MITSHM=1     -it xingyu/softgym:latest bash
+Set enviornments:
+cd VCD/softgym
+. ./prepare_1.0_docker.sh 
+cd ../
+. ./prepare_1.0.sh
+. ./complie_1.0.sh  
+exit
+Set everything back as before:
+mv softgym softgym_repo
+ln -s softgym_repo/softgym softgym
+ln -s softgym_repo/PyFlex PyFlex
+Now try running: python VCD/main.py --gen_data=1 --dataf=./data/vcd
+If you encounter missing OSError: libcusparse.so.11
+Fix by following this ref: https://blog.csdn.net/little_cute/article/details/124766123
+locate libcusparse.so.11
+export PATH=/home/grg/anaconda3/envs/softgym/bin/:$PATH
+export CPATH=/home/grg/anaconda3/envs/softgym/include/:$CPATH
+export LD_LIBRARY_PATH=/home/grg/anaconda3/envs/softgym/lib/:$LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=/home/grg/anaconda3/envs/softgym/lib/:$DYLD_LIBRARY_PATH
+Set this in ./prepare_1.0_softgym.sh
+Now it should train! 
+Run:  python VCD/main.py --gen_data=1 --dataf=./data/vcd
+Run:  python VCD/main.py --gen_data=0 --dataf=./pretrained/dataset
+
+

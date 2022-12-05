@@ -42,6 +42,7 @@ import pcl
 
 def voxelize_pointcloud(pointcloud, voxel_size):
     cloud = pcl.PointCloud(pointcloud)
+    # cloud = pcl.PCLPointCloud2(pointcloud)
     sor = cloud.make_voxel_grid_filter()
     sor.set_leaf_size(voxel_size, voxel_size, voxel_size)
     pointcloud = sor.filter()
