@@ -238,6 +238,7 @@ class VCConnection(object):
             'normalized_vox_pc': normalized_point_cloud,
             'pc_to_mesh_mapping': None
         }
+        #GRG
         data = edge_dataset.build_graph(data_ori, get_gt_edge_label=False)
         with torch.no_grad():
             data['x_batch'] = torch.zeros(data['x'].size(0), dtype=torch.long, device=self.device)

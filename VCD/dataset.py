@@ -336,6 +336,8 @@ class ClothDataset(Dataset):
                 else:
                     picked_particles[i] = int(-1)
         picked_status = (picked_velocity, picked_pos, new_picker_pos)
+
+        #GRG
         return picked_particles, picked_status
 
     def _compute_node_attr(self, vox_pc, picked_points, velocity_his):
@@ -370,11 +372,17 @@ class ClothDataset(Dataset):
             dist_vec = vox_pc[undirected_neighbors[0, :]] - vox_pc[undirected_neighbors[1, :]]
             dist = np.linalg.norm(dist_vec, axis=1, keepdims=True)
             edge_attr = np.concatenate([dist_vec, dist], axis=1)
-            edge_attr_reverse = np.concatenate([-dist_vec, dist], axis=1)
+            #GRG-directed graph
+            if not self.args.use_directed:
+                edge_attr_reverse = np.concatenate([-dist_vec, dist], axis=1)
 
             # Generate directed edge list and corresponding edge attributes
-            edges = np.concatenate([undirected_neighbors, undirected_neighbors[::-1]], axis=1)
-            edge_attr = np.concatenate([edge_attr, edge_attr_reverse])
+            #GRG-directed graph
+            if self.args.use_directed:
+                edges = undirected_neighbors
+            else:
+                edges = np.concatenate([undirected_neighbors, undirected_neighbors[::-1]], axis=1)
+                edge_attr = np.concatenate([edge_attr, edge_attr_reverse])
             num_distance_edges = edges.shape[1]
         else:
             num_distance_edges = 0

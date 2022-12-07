@@ -21,6 +21,68 @@ from VCD.utils.utils import extract_numbers, pc_reward_model, visualize
 from VCD.utils.camera_utils import get_matrix_world_to_camera, project_to_image
 
 
+
+def checkEdgeDirection(edge_index):
+    print("checkEdgeDirection")
+    
+    aa = edge_index.detach().cpu().numpy().T.tolist()
+    aaa = [f"{tup}" for tup in aa]
+    edge_dict = {}
+    for i,a in enumerate(aaa):
+        edge_dict[a] = i
+
+    bidirected = False
+    for k in edge_dict.keys():
+        edge = [int(i) for i in k.replace('[', '').replace(']', '').split(',')]
+        s,t = edge
+
+        opp_edge = f"{[t,s]}"
+
+        if opp_edge in edge_dict:
+            # print(f"Bi-directed edge: {edge} & {opp_edge} ")
+            bidirected = True
+    
+    print(f"Bi-directed graph: {bidirected}")
+
+    return bidirected
+
+
+
+def getDirectedEdges(edge_index, Random = True):
+    print(f"getDirectedEdges - random {Random}")
+    
+    aa = edge_index.detach().cpu().numpy().T.tolist()
+    aaa = [tup for tup in aa]
+
+    #Sort the elements of edge_tuple_list
+    [i.sort() for i in aaa]
+
+    aaa = [f"{tup}" for tup in aaa]
+    
+    edge_dict = {}
+    for i,a in enumerate(aaa):
+        edge_dict[a] = i
+
+    print(f"Reduced edges count to {len(edge_dict.keys())} from {edge_index.shape[1]} [half = {edge_index.shape[1]/2}]")
+
+    new_edge_index = []
+    for k in edge_dict.keys():
+        edge = [int(i) for i in k.replace('[', '').replace(']', '').split(',')]
+        s,t = edge
+
+        if Random:
+            new_edge_index.append([s, t]) if np.random.uniform() > 0.5 else new_edge_index.append([t, s])
+        else:
+            new_edge_index.append([s, t])
+
+    new_edge_index = torch.tensor(new_edge_index, dtype = edge_index.dtype, device = edge_index.device).T
+    assert new_edge_index.shape[0] == edge_index.shape[0], "Error! New edge_index shape mismatch."
+
+    assert not checkEdgeDirection(new_edge_index), "Error! New edge_index not directed."
+
+    return new_edge_index
+
+
 class VCDynamics(object):
     def __init__(self, args, env, vcd_edge=None):
         # Create Models
@@ -31,7 +93,7 @@ class VCDynamics(object):
         self.input_types = ['full', 'vsbl'] if self.train_mode == 'graph_imit' else [self.train_mode]
         self.models, self.optims, self.schedulers = {}, {}, {}
         for m in self.input_types:
-            self.models[m] = GNN(args, decoder_output_dim=3, name=m, use_reward=False if self.train_mode == 'vsbl' else True)  # Predict acceleration
+            self.models[m] = GNN(args, decoder_output_dim=3, name=m, use_reward=False if self.train_mode == 'vsbl' else True, use_directed = args.use_directed)  # Predict acceleration
             lr = getattr(self.args, m + '_lr') if hasattr(self.args, m + '_lr') else self.args.lr
             self.optims[m] = torch.optim.Adam(self.models[m].param(), lr=lr, betas=(self.args.beta1, 0.999))
             self.schedulers[m] = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optims[m], 'min', factor=0.8,
@@ -156,8 +218,46 @@ class VCDynamics(object):
                 # Log all the useful metrics
                 epoch_infos = {m: AggDict(is_detach=True) for m in self.models}
 
-                epoch_len = len(self.dataloaders[phase])
-                for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
+                #GRG
+                epoch_len = len(self.dataloaders[phase]) #10687
+                for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}, iters {epoch_len}'):
+                    
+                    if i >= self.args.num_iters:
+                        print(f"Stopping at iter-{i} as mandated by config")
+                        break
+                    
+                    
+                    #GRG-directed graph
+                    if self.args.use_directed:
+                        print(f"[Pre-Process] data['edge_index_vsbl'].shape, data['edge_attr_vsbl'].shape = {data['edge_index_vsbl'].shape, data['edge_attr_vsbl'].shape}")
+
+                        di_edge_index_vsbl = getDirectedEdges(data['edge_index_vsbl'])
+
+                        di_edge_index_vsbl_list = di_edge_index_vsbl.detach().cpu().numpy().T.tolist()
+                        edge_index_vsbl, edge_attr_vsbl = data['edge_index_vsbl'].T, data['edge_attr_vsbl']
+                        edge_index_vsbl_list, edge_attr_vsbl_list = edge_index_vsbl.detach().cpu().numpy().tolist(), edge_attr_vsbl.detach().cpu().numpy().tolist()
+
+                        directed_ei = []
+                        directed_ea = []
+                        for ei, ea in zip(edge_index_vsbl_list, edge_attr_vsbl_list):
+                            
+                            if ei in di_edge_index_vsbl_list:
+                                if ei not in directed_ei:
+                                    directed_ei.append(ei)
+                                    directed_ea.append(ea)
+                                
+                        di_edge_index_vsbl = torch.tensor(directed_ei, dtype = edge_index_vsbl.dtype, device = edge_index_vsbl.device).T
+                        di_edge_attr_vsbl = torch.tensor(directed_ea, dtype = edge_attr_vsbl.dtype, device = edge_attr_vsbl.device)
+                        
+                        assert di_edge_index_vsbl.shape[0] == data['edge_index_vsbl'].shape[0], "Error! New edge_index shape mismatch."
+                        assert di_edge_attr_vsbl.shape[1] == data['edge_attr_vsbl'].shape[1], "Error! New edge_attr shape mismatch."
+
+                        assert not checkEdgeDirection(di_edge_index_vsbl), "Error! New edge_index not directed."
+
+                        data['edge_index_vsbl'], data['edge_attr_vsbl'] = di_edge_index_vsbl, di_edge_attr_vsbl
+                        
+                        print(f"[Post-Process] data['edge_index_vsbl'].shape, data['edge_attr_vsbl'].shape = {data['edge_index_vsbl'].shape, data['edge_attr_vsbl'].shape}")
+
                     data = data.to(self.device).to_dict()
                     iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
                     preds = {}
@@ -207,6 +307,33 @@ class VCDynamics(object):
 
                         epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
 
+                
+                print("Saving models")
+                
+                
+                if phase == 'train' and epoch % self.args.save_model_interval == 0:
+                    for m_name, model in self.models.items():
+                        suffix = '{}'.format(epoch)
+                        model.save_model(self.log_dir, m_name, suffix, self.optims[m_name])
+
+                if phase == 'valid':
+                    for m_name, model in self.models.items():
+                        epoch_info = epoch_infos[m_name]
+                        cur_loss = epoch_info[f"{m_name}/{phase}/" + 'total_loss']
+                        if not self.args.fixed_lr:
+                            self.schedulers[m_name].step(cur_loss)
+                        if cur_loss < best_valid_loss[m_name]:
+                            best_valid_loss[m_name] = cur_loss
+                            state_dict = self.args.__dict__
+                            state_dict['best_epoch'] = epoch
+                            state_dict['best_valid_loss'] = cur_loss
+                            with open(osp.join(self.log_dir, 'best_state.json'), 'w') as f:
+                                json.dump(state_dict, f, indent=2, sort_keys=True)
+                            model.save_model(self.log_dir, m_name, 'best', self.optims[m_name])
+
+
+                print("Running Rollout")
+
                 # rollout evaluation
                 nstep_eval_rollout = self.args.nstep_eval_rollout
                 data_folder = osp.join(self.args.dataf, phase)
@@ -215,6 +342,8 @@ class VCDynamics(object):
                 for m_name in self.models:
                     rollout_info = AggDict()
                     for idx, traj_id in enumerate(traj_ids):
+                        print(f"[idx={idx}]")
+
                         with torch.no_grad():
                             self.set_mode('eval')
                             traj_rollout_info = self.load_data_and_rollout(m_name, traj_id, phase)
@@ -259,6 +388,10 @@ class VCDynamics(object):
                                                        '{}-{}-{}-{}.gif'.format(m_name, phase, epoch, idx)))
                     rollout_infos[m_name] = rollout_info.get_mean(f"{m_name}/{phase}/", len(traj_ids))
 
+                
+                print("Saving models")
+                
+                
                 if phase == 'train' and epoch % self.args.save_model_interval == 0:
                     for m_name, model in self.models.items():
                         suffix = '{}'.format(epoch)
@@ -364,7 +497,11 @@ class VCDynamics(object):
             neighbor_radius = self.datasets['train'].args.neighbor_radius
             point_tree = scipy.spatial.cKDTree(pc_pos)
             undirected_neighbors = np.array(list(point_tree.query_pairs(neighbor_radius, p=2))).T
-            mesh_edges = np.concatenate([undirected_neighbors, undirected_neighbors[::-1]], axis=1)
+            #GRG-directed graph
+            if args.use_directed:
+                mesh_edges = undirected_neighbors
+            else:
+                mesh_edges = np.concatenate([undirected_neighbors, undirected_neighbors[::-1]], axis=1)
 
         ret = 0
         for t in range(H):

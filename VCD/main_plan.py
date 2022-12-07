@@ -19,6 +19,11 @@ from VCD.vc_dynamics import VCDynamics
 from VCD.vc_edge import VCConnection
 import argparse
 
+# #GRG
+# import zero
+# seed = 44
+# #Set seed to improve reproducibility 
+# zero.improve_reproducibility(seed)
 
 def get_default_args():
     parser = argparse.ArgumentParser()
@@ -42,6 +47,10 @@ def get_default_args():
                         help='Path to a dynamics model using partial point cloud')
     parser.add_argument('--load_optim', type=bool, default=False, help='Load optimizer when resume training')
 
+    #Flag to use directed edges for dynamics GNN model
+    parser.add_argument('--use_directed', type=bool, default=False)
+    parser.add_argument('--num_iters', type=int, default=1e15)
+
     # Planning
     parser.add_argument('--shooting_number', type=int, default=500, help='Number of sampled pick-and-place action for random shooting')
     parser.add_argument('--delta_y', type=float, default=0.07, help='Fixed picking height for real-world experiment')
@@ -52,7 +61,8 @@ def get_default_args():
     parser.add_argument('--num_worker', type=int, default=6, help='Number of processes to generate the sampled pick-and-place actions in parallel')
     parser.add_argument('--task', type=str, default='flatten', help="'flatten' or 'fold'")
     parser.add_argument('--pred_time_interval', type=int, default=5, help='Interval of timesteps between each dynamics prediction (model dt)')
-    parser.add_argument('--configurations', type=list, default=[i for i in range(20)], help='List of configurations to run')
+    # parser.add_argument('--configurations', type=list, default=[i for i in range(20)], help='List of configurations to run') 
+    parser.add_argument('--configurations', type=list, default=[i for i in range(3)], help='List of configurations to run') 
     parser.add_argument('--pick_and_place_num', type=int, default=10, help='Number of pick-and-place for one smoothing trajectory')
 
     # Other
@@ -127,6 +137,9 @@ def load_edge_model(edge_model_path, env):
         edge_model_vv['eval'] = 1
         edge_model_vv['n_epoch'] = 1
         edge_model_vv['edge_model_path'] = edge_model_path
+
+        edge_model_vv['use_directed'] = False
+
         edge_model_args = vv_to_args(edge_model_vv)
 
         vcd_edge = VCConnection(edge_model_args, env=env)
@@ -153,6 +166,9 @@ def load_dynamics_model(args, env, vcd_edge):
     model_vv['pred_time_interval'] = args.pred_time_interval
     model_vv['cuda_idx'] = args.cuda_idx
     model_vv['partial_dyn_path'] = args.partial_dyn_path
+
+    model_vv['use_directed'] = args.use_directed
+
     args = vv_to_args(model_vv)
 
     vcdynamics = VCDynamics(args, vcd_edge=vcd_edge, env=env)

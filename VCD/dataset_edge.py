@@ -72,6 +72,7 @@ class ClothDatasetPointCloudEdge(ClothDataset):
         return ret_data
 
     def _compute_edge_attr(self, vox_pc):
+        #GRG
         point_tree = spatial.cKDTree(vox_pc)
         undirected_neighbors = np.array(list(point_tree.query_pairs(self.args.neighbor_radius, p=2))).T
 
@@ -79,11 +80,17 @@ class ClothDatasetPointCloudEdge(ClothDataset):
             dist_vec = vox_pc[undirected_neighbors[0, :]] - vox_pc[undirected_neighbors[1, :]]
             dist = np.linalg.norm(dist_vec, axis=1, keepdims=True)
             edge_attr = np.concatenate([dist_vec, dist], axis=1)
-            edge_attr_reverse = np.concatenate([-dist_vec, dist], axis=1)
+            #GRG-directed graph
+            if not self.args.use_directed:
+                edge_attr_reverse = np.concatenate([-dist_vec, dist], axis=1)
 
             # Generate directed edge list and corresponding edge attributes
-            edges = torch.from_numpy(np.concatenate([undirected_neighbors, undirected_neighbors[::-1]], axis=1))
-            edge_attr = torch.from_numpy(np.concatenate([edge_attr, edge_attr_reverse]))
+            #GRG-directed graph
+            if self.args.use_directed:
+                edges = undirected_neighbors
+            else:
+                edges = torch.from_numpy(np.concatenate([undirected_neighbors, undirected_neighbors[::-1]], axis=1))
+                edge_attr = torch.from_numpy(np.concatenate([edge_attr, edge_attr_reverse]))
         else:
             print("number of distance edges is 0! adding fake edges")
             edges = np.zeros((2, 2), dtype=np.uint8)

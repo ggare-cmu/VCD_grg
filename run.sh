@@ -1,0 +1,2 @@
+
+python VCD/main.py --dataf "./pretrained/dataset" --partial_dyn_path "pretrained/VCD_Pretrained_Models/dynamics_model/vsbl_dyn_140.pth" --n_epoch 141 --batch_size 16 --num_workers 10 --save_model_interval 1 --n_rollout 200 --time_step 10

@@ -13,6 +13,11 @@ from VCD.vc_edge import VCConnection
 from chester import logger
 from VCD.utils.utils import configure_logger, configure_seed
 
+# #GRG
+# import zero
+# seed = 44
+# #Set seed to improve reproducibility 
+# zero.improve_reproducibility(seed)
 
 def get_default_args():
     parser = argparse.ArgumentParser()
@@ -55,6 +60,11 @@ def get_default_args():
     parser.add_argument('--relation_dim', type=int, default=7, help="""Dim of edge feature input: 
         3 for directional vector + 1 for directional vector magnitude + 2 for one-hot encoding of mesh or collision edge + 1 for rest distance
         """)
+
+    #Flag to use directed edges for dynamics GNN model
+    parser.add_argument('--use_directed', type=bool, default=False)
+    parser.add_argument('--num_iters', type=int, default=1e15)
+    
 
     # Resume training
     parser.add_argument('--edge_model_path', type=str, default=None, help='Path to a trained edgeGNN model')

@@ -166,12 +166,79 @@ class RewardModel(torch.nn.Module):
         return out
 
 
+def checkEdgeDirection(edge_index):
+    print("checkEdgeDirection")
+    
+    aa = edge_index.detach().cpu().numpy().T.tolist()
+    aaa = [f"{tup}" for tup in aa]
+    edge_dict = {}
+    for i,a in enumerate(aaa):
+        edge_dict[a] = i
+
+    bidirected = False
+    for k in edge_dict.keys():
+        edge = [int(i) for i in k.replace('[', '').replace(']', '').split(',')]
+        s,t = edge
+
+        opp_edge = f"{[t,s]}"
+
+        if opp_edge in edge_dict:
+            # print(f"Bi-directed edge: {edge} & {opp_edge} ")
+            bidirected = True
+    
+    print(f"Bi-directed graph: {bidirected}")
+
+    return bidirected
+
+
+import numpy as np
+
+def getDirectedEdges(edge_index, Random = True):
+    print(f"getDirectedEdges - random {Random}")
+    
+    aa = edge_index.detach().cpu().numpy().T.tolist()
+    aaa = [tup for tup in aa]
+
+    #Sort the elements of edge_tuple_list
+    [i.sort() for i in aaa]
+
+    aaa = [f"{tup}" for tup in aaa]
+    
+    edge_dict = {}
+    for i,a in enumerate(aaa):
+        edge_dict[a] = i
+
+    print(f"Reduced edges count to {len(edge_dict.keys())} from {edge_index.shape[1]} [half = {edge_index.shape[1]/2}]")
+
+    new_edge_index = []
+    for k in edge_dict.keys():
+        edge = [int(i) for i in k.replace('[', '').replace(']', '').split(',')]
+        s,t = edge
+
+        if Random:
+            new_edge_index.append([s, t]) if np.random.uniform() > 0.5 else new_edge_index.append([t, s])
+        else:
+            new_edge_index.append([s, t])
+
+    new_edge_index = torch.tensor(new_edge_index, dtype = edge_index.dtype, device = edge_index.device).T
+    assert new_edge_index.shape[0] == edge_index.shape[0], "Error! New edge_index shape mismatch."
+
+    assert not checkEdgeDirection(new_edge_index), "Error! New edge_index not directed."
+
+    return new_edge_index
+
+
+
 class GNBlock(torch.nn.Module):
-    def __init__(self, input_size, hidden_size=128, output_size=128, use_global=True, global_size=128):
+    def __init__(self, input_size, hidden_size=128, output_size=128, use_global=True, global_size=128, use_directed = False):
         super(GNBlock, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
+
+        self.use_directed = use_directed
+        print(f"Using directed edges = {self.use_directed}")
+
         if use_global:
             self.model = MetaLayer(EdgeModel(self.input_size[0], self.hidden_size, self.output_size),
                                    NodeModel(self.input_size[1], self.hidden_size, self.output_size),
@@ -187,12 +254,23 @@ class GNBlock(torch.nn.Module):
         # edge_attr: [E, F_e]
         # u: [B, F_u]
         # batch: [N] with max entry B - 1.
+
+        '''
+        #GRG-Note: The edge_index contains the tuple (source, target) pair
+                  So, changing the (s,t) to (t,s) should make it bi-directional
+        '''
+        
+        # if self.use_directed:
+        #     edge_index = getDirectedEdges(edge_index)
+        
+        # checkEdgeDirection(edge_index)
+
         x, edge_attr, u = self.model(x, edge_index, edge_attr, u, batch)
         return x, edge_attr, u
 
 
 class Processor(torch.nn.Module):
-    def __init__(self, input_size, hidden_size=128, output_size=128, use_global=True, global_size=128, layers=10):
+    def __init__(self, input_size, hidden_size=128, output_size=128, use_global=True, global_size=128, layers=10, use_directed = False):
         """
         :param input_size: A list of size to edge model, node model and global model
         """
@@ -203,7 +281,7 @@ class Processor(torch.nn.Module):
         self.use_global = use_global
         self.global_size = global_size
         self.gns = torch.nn.ModuleList([
-            GNBlock(self.input_size, self.hidden_size, self.output_size, self.use_global, global_size=global_size)
+            GNBlock(self.input_size, self.hidden_size, self.output_size, self.use_global, global_size=global_size, use_directed=use_directed)
             for _ in range(layers)])
 
     def forward(self, x, edge_index, edge_attr, u, batch):
@@ -257,7 +335,7 @@ class Decoder(torch.nn.Module):
 
 
 class GNN(torch.nn.Module):
-    def __init__(self, args, decoder_output_dim, name, use_reward=False):
+    def __init__(self, args, decoder_output_dim, name, use_reward=False, use_directed = False):
         super(GNN, self).__init__()
         self.name = name
         self.args = args
@@ -268,6 +346,7 @@ class GNN(torch.nn.Module):
                                                    [3 * embed_dim + args.global_size,
                                                     2 * embed_dim + args.global_size,
                                                     2 * embed_dim + args.global_size],
+                                                    use_directed=use_directed,
                                                    use_global=self.use_global, layers=args.proc_layer, global_size=args.global_size),
                                                'decoder': Decoder(output_size=decoder_output_dim)})
         self.use_reward = use_reward

@@ -6,6 +6,11 @@ from VCD.vc_edge import VCConnection
 from VCD.main import create_env
 from VCD.utils.utils import configure_logger, configure_seed
 
+# #GRG
+# import zero
+# seed = 44
+# #Set seed to improve reproducibility 
+# zero.improve_reproducibility(seed)
 
 # TODO Merge arguments
 def get_default_args():
