@@ -20,7 +20,7 @@ from VCD.utils.data_utils import AggDict
 from VCD.utils.utils import extract_numbers, pc_reward_model, visualize
 from VCD.utils.camera_utils import get_matrix_world_to_camera, project_to_image
 
-
+import networkx as nx
 
 def checkEdgeDirection(edge_index):
     print("checkEdgeDirection")
@@ -47,8 +47,14 @@ def checkEdgeDirection(edge_index):
     return bidirected
 
 
+def getDifrectedEdgeWithRoot(edge_index, root_node):
+    G = nx.Graph(edge_index)
+    DG = nx.dfs_tree(G, root_node)
+    new_edge_index = DG.edges
 
-def getDirectedEdges(edge_index, Random = True):
+    return new_edge_index
+
+def getDirectedEdges(edge_index, Random = False):
     print(f"getDirectedEdges - random {Random}")
     
     aa = edge_index.detach().cpu().numpy().T.tolist()
@@ -530,6 +536,37 @@ class VCDynamics(object):
 
             model_positions[t] = pc_pos
             shape_positions[t] = picker_pos
+
+            #GRG-directed graph
+            if self.args.use_directed:
+                print(f"[Pre-Process] data['edge_index_vsbl'].shape, data['edge_attr_vsbl'].shape = {graph_data['neighbors'].shape, graph_data['edge_attr'].shape}")
+
+                di_edge_index_vsbl = getDirectedEdges(graph_data['neighbors'])
+
+                di_edge_index_vsbl_list = di_edge_index_vsbl.detach().cpu().numpy().T.tolist()
+                edge_index_vsbl, edge_attr_vsbl = graph_data['neighbors'].T, graph_data['edge_attr']
+                edge_index_vsbl_list, edge_attr_vsbl_list = edge_index_vsbl.detach().cpu().numpy().tolist(), edge_attr_vsbl.detach().cpu().numpy().tolist()
+
+                directed_ei = []
+                directed_ea = []
+                for ei, ea in zip(edge_index_vsbl_list, edge_attr_vsbl_list):
+                    
+                    if ei in di_edge_index_vsbl_list:
+                        if ei not in directed_ei:
+                            directed_ei.append(ei)
+                            directed_ea.append(ea)
+                        
+                di_edge_index_vsbl = torch.tensor(directed_ei, dtype = edge_index_vsbl.dtype, device = edge_index_vsbl.device).T
+                di_edge_attr_vsbl = torch.tensor(directed_ea, dtype = edge_attr_vsbl.dtype, device = edge_attr_vsbl.device)
+                
+                assert di_edge_index_vsbl.shape[0] == graph_data['neighbors'].shape[0], "Error! New edge_index shape mismatch."
+                assert di_edge_attr_vsbl.shape[1] == graph_data['edge_attr'].shape[1], "Error! New edge_attr shape mismatch."
+
+                assert not checkEdgeDirection(di_edge_index_vsbl), "Error! New edge_index not directed."
+
+                graph_data['neighbors'], graph_data['edge_attr'] = di_edge_index_vsbl, di_edge_attr_vsbl
+                
+                print(f"[Post-Process] data['edge_index_vsbl'].shape, data['edge_attr_vsbl'].shape = {graph_data['neighbors'].shape, graph_data['edge_attr'].shape}")
 
             inputs = {'x': graph_data['node_attr'].to(self.device),
                       'edge_attr': graph_data['edge_attr'].to(self.device),

@@ -13,6 +13,42 @@ from VCD.utils.data_utils import PrivilData
 from softgym.utils.visualization import save_numpy_as_gif
 
 
+import networkx as nx
+
+def getDifrectedEdgeWithRoot(edge_index, root_node):
+
+    print(f"Root node = {root_node}")
+
+    # G = nx.Graph(edge_index)
+    G = nx.from_edgelist(edge_index.T)
+
+    nodes = list(G.nodes)
+    nodes.sort()
+
+    if root_node[0] < 0:
+        # DG = nx.dfs_tree(G, 0)
+        DG = nx.dfs_tree(G, nodes[0])
+    elif root_node[0] not in G.nodes:
+        print(F"[Warning] root node not in graph G")
+        if root_node[0] + 1 in G.nodes:
+            # DG = nx.dfs_tree(G, root_node[0] + 1)
+            G = nx.from_edgelist(np.concatenate((edge_index.T, np.array([root_node[0], root_node[0]+1])[np.newaxis,:]), 0))
+            DG = nx.dfs_tree(G, root_node[0])
+        elif root_node[0] - 1 in G.nodes:
+            # DG = nx.dfs_tree(G, root_node[0] - 1)
+            G = nx.from_edgelist(np.concatenate((edge_index.T, np.array([root_node[0], root_node[0]-1])[np.newaxis,:]), 0))
+            DG = nx.dfs_tree(G, root_node[0])
+        else:
+            # DG = nx.dfs_tree(G, 0)
+            DG = nx.dfs_tree(G, nodes[0])
+    else:
+        DG = nx.dfs_tree(G, root_node[0])
+
+    new_edge_index = np.array(DG.edges).T
+
+    return new_edge_index
+
+
 class ClothDataset(Dataset):
     def __init__(self, args, input_types, phase, env):
         super(ClothDataset).__init__()
@@ -162,7 +198,7 @@ class ClothDataset(Dataset):
         vox_pc, velocity_his = data['pointcloud'], data['vel_his']
         picked_points, picked_status = self._find_and_update_picked_point(data, robot_exp=robot_exp)  # Return index of the picked point
         node_attr = self._compute_node_attr(vox_pc, picked_points, velocity_his)
-        edges, edge_attr = self._compute_edge_attr(input_type, data)
+        edges, edge_attr = self._compute_edge_attr(input_type, data, picked_points)
 
         return {'node_attr': node_attr,
                 'neighbors': edges,
@@ -355,7 +391,8 @@ class ClothDataset(Dataset):
         node_attr = torch.cat([node_attr, distance_to_ground, node_one_hot], dim=1)
         return node_attr
 
-    def _compute_edge_attr(self, input_type, data):
+
+    def _compute_edge_attr(self, input_type, data, picked_points):
         ##### add env specific graph components
         ## Edge attributes:
         # [1, 0] Distance based neighbor
@@ -367,6 +404,8 @@ class ClothDataset(Dataset):
 
         point_tree = scipy.spatial.cKDTree(vox_pc)
         undirected_neighbors = np.array(list(point_tree.query_pairs(self.args.neighbor_radius, p=2))).T
+
+        undirected_neighbors = getDifrectedEdgeWithRoot(edge_index = undirected_neighbors, root_node = picked_points)
 
         if len(undirected_neighbors) > 0:
             dist_vec = vox_pc[undirected_neighbors[0, :]] - vox_pc[undirected_neighbors[1, :]]

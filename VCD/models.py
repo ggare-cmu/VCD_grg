@@ -166,8 +166,17 @@ class RewardModel(torch.nn.Module):
         return out
 
 
+import networkx as nx
+
+def getDifrectedEdgeWithRoot(edge_index, root_node):
+    G = nx.Graph(edge_index)
+    DG = nx.dfs_tree(G, root_node)
+    new_edge_index = DG.edges
+
+    return new_edge_index
+
 def checkEdgeDirection(edge_index):
-    print("checkEdgeDirection")
+    # print("checkEdgeDirection")
     
     aa = edge_index.detach().cpu().numpy().T.tolist()
     aaa = [f"{tup}" for tup in aa]
@@ -186,14 +195,14 @@ def checkEdgeDirection(edge_index):
             # print(f"Bi-directed edge: {edge} & {opp_edge} ")
             bidirected = True
     
-    print(f"Bi-directed graph: {bidirected}")
+    # print(f"Bi-directed graph: {bidirected}")
 
     return bidirected
 
 
 import numpy as np
 
-def getDirectedEdges(edge_index, Random = True):
+def getDirectedEdges(edge_index, Random = False):
     print(f"getDirectedEdges - random {Random}")
     
     aa = edge_index.detach().cpu().numpy().T.tolist()
@@ -264,6 +273,8 @@ class GNBlock(torch.nn.Module):
         #     edge_index = getDirectedEdges(edge_index)
         
         # checkEdgeDirection(edge_index)
+
+        assert self.use_directed != checkEdgeDirection(edge_index)
 
         x, edge_attr, u = self.model(x, edge_index, edge_attr, u, batch)
         return x, edge_attr, u
